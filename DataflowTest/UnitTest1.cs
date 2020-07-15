@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading;
 using System;
 using System.Linq;
@@ -18,10 +19,10 @@ namespace DataflowTest
         [Fact]
         public void PipelineNormal()
         {
+            var stopWatch = new Stopwatch();
             var sourceBlock = new BatchBlock<int>(10);
             var transformBlock = new TransformBlock<int[], int>(numbers =>
             {
-                Thread.Sleep(2000);
                 return Task.FromResult(numbers.Sum());
             });
             var actionBlock = new ActionBlock<int>(num => Console.WriteLine($"Total: {num}"));
@@ -29,10 +30,18 @@ namespace DataflowTest
             sourceBlock.LinkTo(transformBlock, new DataflowLinkOptions { PropagateCompletion = true });
             transformBlock.LinkTo(actionBlock, new DataflowLinkOptions { PropagateCompletion = true });
 
-            foreach (var num in Enumerable.Range(1, 10))
+            stopWatch.Start();
+            Console.WriteLine("Start: " + stopWatch.ElapsedMilliseconds);
+
+            foreach (var num in Enumerable.Range(1, 11))
             {
+                if (num == 5) { throw new InvalidOperationException(); }
                 sourceBlock.Post(num);
             }
+
+            Console.WriteLine(stopWatch.ElapsedMilliseconds);
+            Thread.Sleep(5000);
+            Console.WriteLine(stopWatch.ElapsedMilliseconds);
 
             sourceBlock.Complete();
             actionBlock.Completion.Wait();
@@ -75,7 +84,7 @@ namespace DataflowTest
 
         }
 
-        [Fact]
+        [Fact(Skip = "DoNotBlockSourceBlock")]
         public async Task DoNotBlockSourceBlock()
         {
             var block = new BufferBlock<int>(new DataflowBlockOptions { BoundedCapacity = 1 });
